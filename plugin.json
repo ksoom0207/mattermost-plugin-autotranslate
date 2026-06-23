@@ -37,6 +37,10 @@
                     {
                         "display_name": "LiteLLM",
                         "value": "litellm"
+                    },
+                    {
+                        "display_name": "OpenRouter",
+                        "value": "openrouter"
                     }
                 ]
             },

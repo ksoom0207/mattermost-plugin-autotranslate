@@ -244,6 +244,12 @@ type LiteLLMProvider struct {
 	model  string
 }
 
+// OpenRouterProvider implements TranslationProvider for OpenRouter
+type OpenRouterProvider struct {
+	apiKey string
+	model  string
+}
+
 // NewLiteLLMProvider creates a new LiteLLM provider
 func NewLiteLLMProvider(apiURL, apiKey, model string) *LiteLLMProvider {
 	return &LiteLLMProvider{
@@ -359,6 +365,108 @@ func (p *LiteLLMProvider) Translate(text, sourceLang, targetLang string) (string
 	translatedText := litellmResp.Choices[0].Message.Content
 
 	// Clean up common unwanted patterns (reuse cleaning function)
+	translatedText = cleanTranslationOutput(translatedText)
+
+	return translatedText, nil
+}
+
+// NewOpenRouterProvider creates a new OpenRouter provider
+func NewOpenRouterProvider(apiKey, model string) *OpenRouterProvider {
+	return &OpenRouterProvider{
+		apiKey: apiKey,
+		model:  model,
+	}
+}
+
+// GetName returns the provider name
+func (p *OpenRouterProvider) GetName() string {
+	return "openrouter"
+}
+
+// Translate translates text using OpenRouter API
+func (p *OpenRouterProvider) Translate(text, sourceLang, targetLang string) (string, error) {
+	// Create translation prompt (same as LiteLLM)
+	sourceLanguageName := getLanguageName(sourceLang)
+	targetLanguageName := getLanguageName(targetLang)
+
+	// Add language clarifications
+	targetClarification := getLanguageClarification(targetLang)
+	sourceClarification := ""
+	if sourceLang != "auto" {
+		sourceClarification = getLanguageClarification(sourceLang)
+	}
+
+	var userPrompt string
+	if sourceLang == "auto" {
+		userPrompt = fmt.Sprintf("Translate to %s%s:\n\n%s", targetLanguageName, targetClarification, text)
+	} else {
+		userPrompt = fmt.Sprintf("Translate from %s%s to %s%s:\n\n%s", sourceLanguageName, sourceClarification, targetLanguageName, targetClarification, text)
+	}
+
+	// Prepare request (OpenAI-compatible format)
+	reqBody := map[string]interface{}{
+		"model": p.model,
+		"messages": []map[string]string{
+			{
+				"role":    "system",
+				"content": "You are a translation system. Output ONLY the translated text without any explanations, notes, or additional commentary.",
+			},
+			{
+				"role":    "user",
+				"content": userPrompt,
+			},
+		},
+		"temperature": 0.3,
+		"max_tokens":  2048,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Make HTTP request to OpenRouter
+	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	req.Header.Set("HTTP-Referer", "https://mattermost.com")   // Optional: your site URL
+	req.Header.Set("X-Title", "Mattermost Translation Plugin") // Optional: your app name
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("OpenRouter API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("OpenRouter API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response (OpenAI-compatible format)
+	var openrouterResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&openrouterResp); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(openrouterResp.Choices) == 0 {
+		return "", fmt.Errorf("no translation returned from OpenRouter")
+	}
+
+	// Clean output
+	translatedText := openrouterResp.Choices[0].Message.Content
 	translatedText = cleanTranslationOutput(translatedText)
 
 	return translatedText, nil

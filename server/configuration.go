@@ -45,6 +45,12 @@ type configuration struct {
 	// LiteLLM Model name
 	LiteLLMModel string
 
+	// OpenRouter API Key
+	OpenRouterApiKey string
+
+	// OpenRouter Model name (e.g., google/gemma-2-9b-it:free)
+	OpenRouterModel string
+
 	// Bot username for auto-translation posts
 	BotUsername string
 
@@ -72,6 +78,8 @@ func (c *configuration) Clone() *configuration {
 		LiteLLMApiURL:      c.LiteLLMApiURL,
 		LiteLLMApiKey:      c.LiteLLMApiKey,
 		LiteLLMModel:       c.LiteLLMModel,
+		OpenRouterApiKey:   c.OpenRouterApiKey,
+		OpenRouterModel:    c.OpenRouterModel,
 		BotUsername:        c.BotUsername,
 		BotDisplayName:     c.BotDisplayName,
 		BotIconURL:         c.BotIconURL,
@@ -170,8 +178,15 @@ func (p *Plugin) IsValid() error {
 		if configuration.LiteLLMModel == "" {
 			return fmt.Errorf("Must have LiteLLM Model name")
 		}
+	case "openrouter":
+		if configuration.OpenRouterApiKey == "" {
+			return fmt.Errorf("Must have OpenRouter API Key")
+		}
+		if configuration.OpenRouterModel == "" {
+			return fmt.Errorf("Must have OpenRouter Model name")
+		}
 	default:
-		return fmt.Errorf("Invalid provider: must be 'aws', 'vllm', or 'litellm'")
+		return fmt.Errorf("Invalid provider: must be 'aws', 'vllm', 'litellm', or 'openrouter'")
 	}
 
 	return nil

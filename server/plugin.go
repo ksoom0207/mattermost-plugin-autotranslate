@@ -158,6 +158,11 @@ func (p *Plugin) getTranslationProvider() (TranslationProvider, error) {
 			configuration.LiteLLMApiKey,
 			configuration.LiteLLMModel,
 		), nil
+	case "openrouter":
+		return NewOpenRouterProvider(
+			configuration.OpenRouterApiKey,
+			configuration.OpenRouterModel,
+		), nil
 	case "aws", "":
 		// Default to AWS if not specified
 		return NewAWSTranslateProvider(
